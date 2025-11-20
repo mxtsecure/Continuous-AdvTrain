@@ -5,3 +5,4 @@ path:
   checkpoint_path: null
   model_path: HuggingFaceH4/zephyr-7b-beta
   model_name: mistral
+  tokenizer_path: null

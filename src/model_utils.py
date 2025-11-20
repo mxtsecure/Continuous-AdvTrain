@@ -12,7 +12,9 @@ from transformers import (
 import torch
 
 
-def load_model_and_tokenizer(model_path, bnb_config=None, padding_side="left", dtype="bf16"):
+def load_model_and_tokenizer(
+    model_path, tokenizer_path=None, bnb_config=None, padding_side="left", dtype="bf16"
+):
     if dtype == "bf16":
         torch_dtype = torch.bfloat16
     elif dtype == "fp16":
@@ -33,7 +35,8 @@ def load_model_and_tokenizer(model_path, bnb_config=None, padding_side="left", d
     model.config.use_cache = False  # Last attention and keys not needed
     model.config.pretraining_tp = 1  # Fast but inaccurate computation for llama2
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
+    tokenizer_source = tokenizer_path or model_path
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_source, use_fast=False)
     if isinstance(tokenizer, LlamaTokenizer) or isinstance(tokenizer, LlamaTokenizerFast):
         tokenizer.pad_token = tokenizer.eos_token
 

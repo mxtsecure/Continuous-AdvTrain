@@ -112,6 +112,7 @@ class PathConfig:
     logging_path: str = "./results"
     model_path: str = "google/gemma-2b-it"
     model_name: Optional[str] = None
+    tokenizer_path: Optional[str] = None
     checkpoint_path: Optional[str] = ""
     load_checkpoint_path: Optional[str] = None
     load_checkpoint: bool = False
