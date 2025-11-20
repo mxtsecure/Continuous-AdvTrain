@@ -18,15 +18,15 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Run adversarial training with configurable inputs.")
 
     # Paths
-    parser.add_argument("--model_path", type=str, required=True, help="Base model path or Hugging Face repo id.")
-    parser.add_argument("--model_name", type=str, default=None, help="Optional override for model chat template selection.")
+    parser.add_argument("--model_path", type=str, default="/data/xiangtao/projects/crossdefense/code/defense/privacy/open-unlearning/saves/finetune/Llama-3.2-1B-Instruct-tofu", help="Base model path or Hugging Face repo id.")
+    parser.add_argument("--model_name", type=str, default="meta-llama/Llama-3.2-1B-Instruct", help="Optional override for model chat template selection.")
     parser.add_argument(
         "--logging_path", type=str, default="./results", help="Directory for trainer logs and outputs."
     )
     parser.add_argument(
         "--checkpoint_path",
         type=str,
-        default=None,
+        default="/data/xiangtao/projects/crossdefense/code/defense/safety/Continuous-AdvTrain/weights/Llama-3.2-1B-Instruct-tofu-AdvTrain",
         help="Directory to store checkpoints. Defaults to logging_path if unset.",
     )
     parser.add_argument(
