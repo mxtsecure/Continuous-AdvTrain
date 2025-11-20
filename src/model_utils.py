@@ -10,7 +10,6 @@ from transformers import (
 )
 
 import torch
-from peft import PeftModel
 
 
 def load_model_and_tokenizer(model_path, bnb_config=None, padding_side="left", dtype="bf16"):
@@ -41,15 +40,6 @@ def load_model_and_tokenizer(model_path, bnb_config=None, padding_side="left", d
     tokenizer.padding_side = padding_side
 
     return model, tokenizer
-
-
-def load_checkpoint(
-    model,
-    path_config,
-):
-    checkpoint_path = path_config["load_checkpoint_path"]
-    model = PeftModel.from_pretrained(model, checkpoint_path, is_trainable=False)
-    return model
 
 
 def get_chat_template(model_name):
