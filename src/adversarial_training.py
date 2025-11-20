@@ -44,6 +44,7 @@ def adversarial_training_loop(
 
     model, tokenizer = model_utils.load_model_and_tokenizer(
         load_source,
+        tokenizer_path=path_config.get("tokenizer_path"),
         bnb_config=bnb_config,
         padding_side=trainer_hparams["padding_side"],
         dtype=trainer_hparams.pop("dtype"),
@@ -51,7 +52,10 @@ def adversarial_training_loop(
 
     if trainer_hparams["do_online_dpo"]:
         reference_model = model_utils.load_model_and_tokenizer(
-            path_config["model_path"], bnb_config=bnb_config, padding_side=trainer_hparams["padding_side"]
+            path_config["model_path"],
+            tokenizer_path=path_config.get("tokenizer_path"),
+            bnb_config=bnb_config,
+            padding_side=trainer_hparams["padding_side"],
         )[0]
         reference_model.eval()
     else:

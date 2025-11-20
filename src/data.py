@@ -4,7 +4,7 @@ import torch
 import pandas as pd
 from trl import DataCollatorForCompletionOnlyLM
 from datasets import Dataset, interleave_datasets, load_dataset, load_from_disk
-import model_utils
+
 
 
 class MultiDatasetDataCollatorCompletion(DataCollatorForCompletionOnlyLM):
@@ -49,37 +49,46 @@ def get_dataset_id(key):
 
 
 def get_prompt_formatting_func_and_collator(model_name, tokenizer, collator_type="multi"):
-    first_user_msg, user_chat_template, response_template, response_key = model_utils.get_chat_template(
-        model_name
-    )
-
     dataset_text_field, dataset_target_field = get_dataset_text_and_target_field()
+    _ = model_name
 
     def prompt_formatting_func(sample, input_only=False):
         all_formatted_prompts = []
-        for i in range(len(sample[dataset_text_field])):
-            formatted_prompt = ""
-
-            formatted_instruction = first_user_msg.format(instruction=sample[dataset_text_field][i][0])
+        for user_turns, model_turns in zip(sample[dataset_text_field], sample[dataset_target_field]):
+            messages = []
             if input_only:
-                formatted_prompt = formatted_instruction + response_key
+                for instruction in user_turns:
+                    messages.append({"role": "user", "content": instruction})
+                prompt = tokenizer.apply_chat_template(
+                    messages, add_generation_prompt=True, tokenize=False
+                )
             else:
-                formatted_target = response_template.format(target=sample[dataset_target_field][i][0])
-                formatted_prompt += formatted_instruction + formatted_target
-                for instruction, target in zip(
-                    sample[dataset_text_field][i][1:], sample[dataset_target_field][i][1:]
-                ):
-                    formatted_instruction = user_chat_template.format(instruction=instruction)
-                    formatted_target = response_template.format(target=target)
-                    formatted_prompt += formatted_instruction + formatted_target
+                for instruction, target in zip(user_turns, model_turns):
+                    messages.append({"role": "user", "content": instruction})
+                    messages.append({"role": "assistant", "content": target})
+                prompt = tokenizer.apply_chat_template(
+                    messages, add_generation_prompt=False, tokenize=False
+                )
 
-            all_formatted_prompts.append(formatted_prompt)
+            all_formatted_prompts.append(prompt)
 
         return all_formatted_prompts
 
-    # NOTE the phi-3 tokenizer adds the SPIECE_UNDERLINE token (29871) to an encoded <|assistant|> token if not other token is present except for \n, which messes with the matching
-    if model_name == "phi-3":
-        response_key = [13, 32001, 13]
+    dummy_user_text = ""
+    user_only_tokens = tokenizer.apply_chat_template(
+        [{"role": "user", "content": dummy_user_text}],
+        tokenize=True,
+        add_generation_prompt=False,
+    )
+    user_with_generation_prompt_tokens = tokenizer.apply_chat_template(
+        [{"role": "user", "content": dummy_user_text}],
+        tokenize=True,
+        add_generation_prompt=True,
+    )
+    response_key = user_with_generation_prompt_tokens[len(user_only_tokens) :]
+
+    if len(response_key) == 0:
+        raise ValueError("Tokenizer chat template did not provide an assistant prefill.")
 
     if collator_type == "multi":
         collator = MultiDatasetDataCollatorCompletion(response_key, tokenizer=tokenizer)
@@ -291,13 +300,18 @@ def load_adversarial_training_data(
     )
 
     # format and tokenize safe response
-    first_user_msg, user_chat_template, response_template, _ = model_utils.get_chat_template(model_name)
     ## train
     train_data = train_data.map(
         lambda example: {
             "Safe_Model": tokenizer(
-                first_user_msg.format(instruction=example["User"][0])
-                + response_template.format(target=example["Safe_Model"][0])
+                tokenizer.apply_chat_template(
+                    [
+                        {"role": "user", "content": example["User"][0]},
+                        {"role": "assistant", "content": example["Safe_Model"][0]},
+                    ],
+                    add_generation_prompt=False,
+                    tokenize=False,
+                )
             ),
         }
     )
@@ -305,8 +319,14 @@ def load_adversarial_training_data(
     eval_data = eval_data.map(
         lambda example: {
             "Safe_Model": tokenizer(
-                first_user_msg.format(instruction=example["User"][0])
-                + response_template.format(target=example["Safe_Model"][0])
+                tokenizer.apply_chat_template(
+                    [
+                        {"role": "user", "content": example["User"][0]},
+                        {"role": "assistant", "content": example["Safe_Model"][0]},
+                    ],
+                    add_generation_prompt=False,
+                    tokenize=False,
+                )
             ),
         }
     )
