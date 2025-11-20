@@ -1,5 +1,6 @@
 from typing import Dict, Tuple
 import logging
+import os
 import torch
 
 from contextlib import contextmanager, nullcontext
@@ -9,12 +10,11 @@ from transformers import (
     TrainingArguments,
 )
 from transformers.integrations.integration_utils import TensorBoardCallback
-from peft import LoraConfig, PeftModel
+from peft import LoraConfig
 from trl import SFTTrainer, DPOTrainer
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from contextlib import nullcontext
 
 import embedding_attack
 import model_utils
@@ -36,8 +36,14 @@ def adversarial_training_loop(
     if bnb_config is not None:
         bnb_config = BitsAndBytesConfig(**bnb_config)
 
+    load_source = (
+        path_config["load_checkpoint_path"]
+        if path_config.get("load_checkpoint") and path_config.get("load_checkpoint_path")
+        else path_config["model_path"]
+    )
+
     model, tokenizer = model_utils.load_model_and_tokenizer(
-        path_config["model_path"],
+        load_source,
         bnb_config=bnb_config,
         padding_side=trainer_hparams["padding_side"],
         dtype=trainer_hparams.pop("dtype"),
@@ -148,7 +154,10 @@ def adversarial_training_loop(
         trainer.train()
 
     # ======= Save Model ======= #
-    trainer.model.save_pretrained(path_config["checkpoint_path"] + "/final_model")
+    final_model_path = path_config["checkpoint_path"] + "/final_model"
+    os.makedirs(final_model_path, exist_ok=True)
+    trainer.model.save_pretrained(final_model_path)
+    tokenizer.save_pretrained(final_model_path)
 
 
 class AdversarialULTrainer(SFTTrainer):
