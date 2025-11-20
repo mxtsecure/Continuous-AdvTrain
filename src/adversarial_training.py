@@ -132,8 +132,16 @@ def adversarial_training_loop(
     if peft_config is not None:
         log_hparams = {**log_hparams, "target_modules": str(peft_config.target_modules)}
 
+    if tokenizer.pad_token_id is None:
+        if tokenizer.unk_token is not None:
+            tokenizer.pad_token = tokenizer.unk_token
+        elif tokenizer.eos_token is not None:
+            tokenizer.pad_token = tokenizer.eos_token
+        else:
+            tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+            model.resize_token_embeddings(len(tokenizer))
+
     if trainer_hparams["trainer_type"] == "ul":
-        tokenizer.pad_token = tokenizer.unk_token
         tokenizer.truncation_side = 'right'
         tokenizer.padding_side = 'left'
         trainer = AdversarialULTrainer(
@@ -143,7 +151,6 @@ def adversarial_training_loop(
             **trainer_config,
         )
     elif trainer_hparams["trainer_type"] == "dpo":
-        tokenizer.pad_token = tokenizer.unk_token
         trainer = AdversarialDPOTrainer(
             adversarial_attack=adversarial_attack,
             embed_weights=embed_weights,
