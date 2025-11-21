@@ -82,7 +82,7 @@ def adversarial_training_loop(
     # ======= Set Lora Config ======= #
     if peft_config is not None and isinstance(peft_config["target_modules"], str) is False:
         peft_config["target_modules"] = list(peft_config["target_modules"])
-    peft_config = LoraConfig(**peft_config)
+    peft_config = LoraConfig(**peft_config) if peft_config is not None else None
 
     # ======= Set Training Arguments ======= #
     training_arguments = TrainingArguments(
@@ -115,7 +115,6 @@ def adversarial_training_loop(
         "eval_dataset": val_data,
         "formatting_func": formatting_func,
         "data_collator": collator,
-        "peft_config": peft_config,
         "tokenizer": tokenizer,
         "args": training_arguments,
         "packing": sfttrainer_config["packing"],
@@ -123,6 +122,9 @@ def adversarial_training_loop(
         "dpo_reference_model": reference_model,
         **trainer_hparams,
     }
+
+    if peft_config is not None:
+        trainer_config["peft_config"] = peft_config
 
     log_hparams = {
         "learning_rate": training_arguments.learning_rate,
