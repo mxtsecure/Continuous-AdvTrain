@@ -99,8 +99,8 @@ def parse_args():
     parser.add_argument("--dpo_weight", type=float, default=1.0)
 
     # PEFT/BnB toggles
-    parser.add_argument("--disable_peft", action="store_true", help="Disable LoRA PEFT configuration.")
-    parser.add_argument("--disable_bnb", action="store_true", help="Disable 4-bit loading (BnB config).")
+    parser.add_argument("--disable_peft", default=True, help="Disable LoRA PEFT configuration.")
+    parser.add_argument("--disable_bnb", default=True, help="Disable 4-bit loading (BnB config).")
 
     # SFT Trainer options
     parser.add_argument("--max_seq_length", type=int, default=256)
