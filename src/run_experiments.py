@@ -52,7 +52,7 @@ class MyTrainingConfig:
     group_by_length: bool = False
     lr_scheduler_type: str = "cosine"
     do_eval: bool = False
-    evaluation_strategy: str = "no"
+    eval_strategy: str = "no"
     eval_steps: Optional[float] = None
     remove_unused_columns: bool = False
 

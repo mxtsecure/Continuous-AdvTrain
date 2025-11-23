@@ -92,7 +92,7 @@ def parse_args():
 
     # Trainer hyperparameters
     parser.add_argument("--trainer_type", type=str, choices=["ul", "dpo"], default="ul")
-    parser.add_argument("--dtype", type=str, choices=["bf16", "fp16", "fp32"], default="bf16")
+    parser.add_argument("--dtype", type=str, choices=["bf16", "fp16", "fp32"], default="fp16")
     parser.add_argument("--padding_side", type=str, choices=["left", "right"], default="left")
     parser.add_argument("--do_online_dpo", action="store_true", help="Enable online DPO training.")
     parser.add_argument("--dpo_beta", type=float, default=0.1)

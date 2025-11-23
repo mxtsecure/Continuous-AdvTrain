@@ -10,7 +10,7 @@ from transformers import (
     TrainingArguments,
 )
 from transformers.integrations.integration_utils import TensorBoardCallback
-from peft import LoraConfig
+from peft import LoraConfig, PeftModel
 from trl import SFTTrainer, DPOTrainer
 from tqdm import tqdm
 from torch.utils.data import DataLoader
@@ -238,7 +238,7 @@ class AdversarialULTrainer(SFTTrainer):
         self.label_pad_token_id = -100
         self.dpo_reference_model = dpo_reference_model
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         # inputs keys (['input_ids', 'attention_mask', 'labels', 'dataset_id'])
         toward_inputs, away_inputs, utility_inputs = self.split_inputs(inputs)
 
@@ -494,7 +494,7 @@ class AdversarialDPOTrainer(AdversarialULTrainer):
         self.ref_adapter_name = None
         self.is_peft_model = isinstance(self.model, PeftModel)
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         # inputs keys (['input_ids', 'attention_mask', 'labels', 'dataset_id'])
         toward_inputs, away_inputs, utility_inputs = self.split_inputs(inputs)
 

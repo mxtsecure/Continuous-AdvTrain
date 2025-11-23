@@ -57,6 +57,8 @@ class NoAttack:
 
     def get_one_hot(self, ids):
         device = self.embed_weights.device
+        # 确保 ids 在与 embedding 相同的 device 上
+        ids = ids.to(device)
         batch_size, num_tokens = ids.shape
 
         # Adjusting IDs less than 0 to 0
@@ -241,6 +243,8 @@ class EmbeddingSpaceAttack:
 
     def get_one_hot(self, ids):
         device = self.embed_weights.device
+        # 确保 ids 在与 embedding 相同的 device 上
+        ids = ids.to(device)
         batch_size, num_tokens = ids.shape
 
         # Adjusting IDs less than 0 to 0
@@ -427,16 +431,32 @@ class EmbeddingSpaceAttack:
 
 def disable_model_gradients(model):
     # logging.info("Disabled gradients")
+    # Check if model uses PEFT/LoRA by looking for LoRA parameters
+    has_lora = any("lora" in name for name, _ in model.named_parameters())
+    
     for name, param in model.named_parameters():
         if param.requires_grad and "lora" not in name:
-            raise ValueError(f"Non-Lora Parameter {name} requires grad")
+            # If using PEFT, only LoRA parameters should require grad
+            # If not using PEFT (full fine-tuning), allow all parameters to require grad
+            if has_lora:
+                raise ValueError(f"Non-Lora Parameter {name} requires grad (model appears to use PEFT)")
         param.requires_grad = False
 
 
 def enable_model_gradients(model, only_train_lora=True):
     # logging.info("Enabled gradients")
+    # Check if model uses PEFT/LoRA by looking for LoRA parameters
+    has_lora = any("lora" in name for name, _ in model.named_parameters())
+    
     for name, param in model.named_parameters():
-        if "lora" in name:
+        if has_lora:
+            # If using PEFT, only enable LoRA parameters
+            if "lora" in name:
+                param.requires_grad = True
+        else:
+            # If not using PEFT (full fine-tuning), enable all parameters
+            # Note: This assumes all parameters should be trainable in full fine-tuning
+            # The trainer will handle which parameters actually need gradients
             param.requires_grad = True
 
 class SignSGD(Optimizer):
