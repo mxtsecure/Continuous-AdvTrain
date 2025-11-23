@@ -65,7 +65,7 @@ class NoAttack:
         ids = torch.where(ids < 0, torch.tensor(0, device=device, dtype=ids.dtype), ids)
 
         one_hot = torch.zeros(
-            batch_size, num_tokens, self.vocab_size, device=device, dtype=self.embed_weights.dtype
+            batch_size, num_tokens, self.vocab_size, device=device, dtype=self.attack_dtype
         )
         one_hot.scatter_(2, ids.unsqueeze(2), 1)
         return one_hot
@@ -108,17 +108,20 @@ class EmbeddingSpaceAttack:
         """
 
         self.embed_weights = embed_weights
+        self.model_dtype = embed_weights.dtype
+        self.attack_dtype = torch.float32 if embed_weights.dtype == torch.float16 else embed_weights.dtype
+        self.attack_embed_weights = embed_weights.detach().to(self.attack_dtype)
         # self.response_key = response_key  # TODO Needed? Remove if not (also line bellow and argument)
         # self.response_key_ids = tokenizer.encode(response_key, return_tensors="pt")
         self.tokenizer = tokenizer
         self.vocab_size = self.embed_weights.shape[0]
         self.embedding_size = self.embed_weights.shape[1]
-        self.embedding_norm = torch.norm(embed_weights, p=2, dim=-1).mean()
+        self.embedding_norm = torch.norm(self.attack_embed_weights, p=2, dim=-1).mean()
         self.iters = iters
         self.opt_config = opt_config
         if relative_lr:
             self.opt_config["lr"] = self.opt_config["lr"] * self.eps
-        self.eps = eps * self.embedding_norm
+        self.eps = float(eps) * float(self.embedding_norm)
 
         logging.info(
             f"L2 norm of embedding weights equals {self.embedding_norm} eps multiplier is: {eps} using eps: {self.eps}"
@@ -171,6 +174,10 @@ class EmbeddingSpaceAttack:
             opt.zero_grad()
             adv_embeds = self.get_adv_embeddings(input_embeds, adv_perturbation, adv_perturbation_mask)
             logits, loss = self.calc_loss(i, model, adv_embeds, target_one_hot, attention_mask, loss_mask)
+            if not torch.isfinite(loss):
+                logging.warning("Non-finite attack loss detected (iter %s); resetting perturbation.", i)
+                adv_perturbation.data.zero_()
+                break
             loss.backward()
             all_losses.append(loss.item())
             opt.step()
@@ -202,15 +209,20 @@ class EmbeddingSpaceAttack:
         enable_model_gradients(model)
         
         return (
-            input_embeds.detach(),
-            adv_perturbation.detach(),
+            input_embeds.detach().to(self.model_dtype),
+            adv_perturbation.detach().to(self.model_dtype),
             adv_perturbation_mask.detach(),
             all_losses,
             affirmative_responses,
         )
 
     def calc_loss(self, i, model, input_embeds, target_one_hot, attention_mask, loss_mask, log_debug=True):
-        output = model(inputs_embeds=input_embeds, attention_mask=attention_mask)
+        device_type = input_embeds.device.type
+        use_autocast = self.model_dtype in {torch.float16, torch.bfloat16}
+        forward_dtype = self.model_dtype if use_autocast else None
+
+        with torch.autocast(device_type=device_type, dtype=forward_dtype, enabled=use_autocast):
+            output = model(inputs_embeds=input_embeds.to(self.model_dtype), attention_mask=attention_mask)
         logits = output.logits  # ignore predicted token (not in targets)
 
         logits_loss_mask = logits[:, :-1][loss_mask]
@@ -251,14 +263,14 @@ class EmbeddingSpaceAttack:
         ids = torch.where(ids < 0, torch.tensor(0, device=device, dtype=ids.dtype), ids)
 
         one_hot = torch.zeros(
-            batch_size, num_tokens, self.vocab_size, device=device, dtype=self.embed_weights.dtype
+            batch_size, num_tokens, self.vocab_size, device=device, dtype=self.attack_dtype
         )
         one_hot.scatter_(2, ids.unsqueeze(2), 1)
         return one_hot
 
     def get_embeddings(self, ids):
         one_hot = self.get_one_hot(ids)
-        embeddings = (one_hot @ self.embed_weights).data
+        embeddings = (one_hot @ self.attack_embed_weights).data
         return embeddings
 
     def get_adv_embeddings(self, input_embeds, adv_perturbation, adv_perturbation_mask):
@@ -307,7 +319,7 @@ class EmbeddingSpaceAttack:
         target_mask = target_ids > 0
         input_mask = (~target_mask * attention_mask).to(bool)
         batch_size, num_input_tokens = input_ids.shape
-        dtype = self.embed_weights.dtype
+        dtype = self.attack_dtype
 
         if self.init_type == "instruction":
             adv_perturbation = torch.zeros(
