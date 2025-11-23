@@ -59,6 +59,17 @@ def adversarial_training_loop(
         dtype=dtype,
     )
 
+    model_dtype = next(model.parameters()).dtype
+    fp16 = model_dtype == torch.float16
+    bf16 = model_dtype == torch.bfloat16
+    if (training_config.get("fp16") != fp16) or (training_config.get("bf16") != bf16):
+        logging.warning(
+            "Overriding precision settings to match loaded model dtype %s to prevent GradScaler errors",
+            model_dtype,
+        )
+    training_config.update({"fp16": fp16, "bf16": bf16})
+    dtype = model_dtype
+
     if trainer_hparams["do_online_dpo"]:
         reference_model = model_utils.load_model_and_tokenizer(
             path_config["model_path"],
@@ -138,7 +149,7 @@ def adversarial_training_loop(
 
     log_hparams = {
         "learning_rate": training_arguments.learning_rate,
-        "dtype": dtype,
+        "dtype": str(dtype),
         **trainer_hparams,
         **path_config,
     }
