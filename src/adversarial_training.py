@@ -32,6 +32,15 @@ def adversarial_training_loop(
     sfttrainer_config,
     trainer_hparams,
 ):
+    training_config = dict(training_config)
+    trainer_hparams = dict(trainer_hparams)
+
+    dtype = trainer_hparams.pop("dtype", "fp32")
+    fp16 = dtype == "fp16"
+    bf16 = dtype == "bf16"
+
+    training_config.update({"fp16": fp16, "bf16": bf16})
+
     # ======= Load model and tokeinzer ======= #
     if bnb_config is not None:
         bnb_config = BitsAndBytesConfig(**bnb_config)
@@ -47,7 +56,7 @@ def adversarial_training_loop(
         tokenizer_path=path_config.get("tokenizer_path"),
         bnb_config=bnb_config,
         padding_side=trainer_hparams["padding_side"],
-        dtype=trainer_hparams.pop("dtype"),
+        dtype=dtype,
     )
 
     if trainer_hparams["do_online_dpo"]:
@@ -56,6 +65,7 @@ def adversarial_training_loop(
             tokenizer_path=path_config.get("tokenizer_path"),
             bnb_config=bnb_config,
             padding_side=trainer_hparams["padding_side"],
+            dtype=dtype,
         )[0]
         reference_model.eval()
     else:
@@ -128,6 +138,7 @@ def adversarial_training_loop(
 
     log_hparams = {
         "learning_rate": training_arguments.learning_rate,
+        "dtype": dtype,
         **trainer_hparams,
         **path_config,
     }
