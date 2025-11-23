@@ -36,8 +36,10 @@ def adversarial_training_loop(
     trainer_hparams = dict(trainer_hparams)
 
     dtype = trainer_hparams.pop("dtype", "fp32")
-    fp16 = dtype == "fp16"
-    bf16 = dtype == "bf16"
+    dtype_map = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}
+    desired_dtype = dtype_map.get(dtype, torch.float32)
+    fp16 = desired_dtype == torch.float16
+    bf16 = desired_dtype == torch.bfloat16
 
     training_config.update({"fp16": fp16, "bf16": bf16})
 
@@ -60,13 +62,19 @@ def adversarial_training_loop(
     )
 
     model_dtype = next(model.parameters()).dtype
+    if desired_dtype is not None and desired_dtype != model_dtype:
+        try:
+            model = model.to(desired_dtype)
+            model_dtype = next(model.parameters()).dtype
+        except Exception as cast_error:  # pragma: no cover - defensive
+            logging.warning(
+                "Requested dtype %s but model remains at %s due to: %s",
+                desired_dtype,
+                model_dtype,
+                cast_error,
+            )
     fp16 = model_dtype == torch.float16
     bf16 = model_dtype == torch.bfloat16
-    if (training_config.get("fp16") != fp16) or (training_config.get("bf16") != bf16):
-        logging.warning(
-            "Overriding precision settings to match loaded model dtype %s to prevent GradScaler errors",
-            model_dtype,
-        )
     training_config.update({"fp16": fp16, "bf16": bf16})
     dtype = model_dtype
 
